@@ -1,12 +1,43 @@
 #!/usr/bin/env python3
 
 import os
+import socket
+import subprocess
 import time
 import libtmux
 import argparse
 import configparser
 from rich.prompt import Confirm
 from rich import print
+
+SERVER_PORT = 8002
+SERVER_DIR  = os.path.abspath(os.path.dirname(__file__) + "/../../../.." + "/eudaq_tools/server")
+SERVER_LOG  = os.path.join(SERVER_DIR, "server.log")
+
+def ensure_server_running():
+    """Start the DAQ web server on port SERVER_PORT if not already listening."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        already_up = s.connect_ex(("127.0.0.1", SERVER_PORT)) == 0
+    if already_up:
+        print(f"[green]Server already running on port {SERVER_PORT}[/green]")
+        return
+    print(f"[yellow]Server not running — starting on port {SERVER_PORT}...[/yellow]")
+    log = open(SERVER_LOG, "a")
+    subprocess.Popen(
+        ["python3", "server.py"],
+        cwd=SERVER_DIR,
+        stdout=log,
+        stderr=log,
+        start_new_session=True,
+    )
+    # wait up to 5 s for the server to come up
+    for _ in range(10):
+        time.sleep(0.5)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", SERVER_PORT)) == 0:
+                print(f"[green]Server started on port {SERVER_PORT}[/green]")
+                return
+    print(f"[red]WARNING: server did not come up on port {SERVER_PORT} — check {SERVER_LOG}[/red]")
 
 REF_PRODUCERS = ["ALPIDE"]
 DUT_PRODUCERS = ["DPTS","APTS","OPAMP","MOSS"]
@@ -123,5 +154,6 @@ if __name__=="__main__":
 
     ini_args = parse_ini(args.ini_path)
     ini_args.update({k:v for k,v in vars(args).items() if v is not None})
+    ensure_server_running()
     print("Starting EUDAQ with following arguments:", ini_args)
     setup_tmux(**ini_args)
