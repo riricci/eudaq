@@ -82,9 +82,12 @@ bool ALPIDERawEvent2StdEventConverter::Converting(eudaq::EventSPC in,eudaq::StdE
   for (int j=0;j<8;++j) tev|=((uint64_t)data[i+8+j])<<(j*8);
   tev*=12500; // 80Mhz clks to 1ps
 
-  // forcing corry to fall back on trigger IDs
-  out->SetTimeBegin(0);
-  out->SetTimeEnd(0);
+  // Keep the hardware timestamp (80 MHz ALPIDE clock, converted to ps).
+  // Always set it — including empty frames — so downstream analysis can use it.
+  // Note: this clock is free-running and not synchronised with the TLU clock;
+  // use trigger IDs (SetTriggerN) for event matching in Corryvreckan.
+  out->SetTimeBegin(tev);
+  out->SetTimeEnd(tev);
   out->SetTriggerN(iev);
 
   i+=16;

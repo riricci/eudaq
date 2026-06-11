@@ -98,7 +98,7 @@ def setup_tmux(
     ]:
         window = session.new_window(window_name)
         for i in range(1,sum(n_producers[name] for name in producer_list)):
-            window.split_window()
+            window.split()
             window.select_layout("tiled")
         j = 0
         for name in producer_list:
