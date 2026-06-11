@@ -52,7 +52,12 @@ ALPIDERawEvent2StdEventConverter::Config& ALPIDERawEvent2StdEventConverter::Load
     }
     else {
       p+=7;
-      conf.device_n=std::stoi(id.substr(p));
+      std::string remainder = id.substr(p);
+      // Support both "ALPIDE_N" and "ALPIDE_plane_N" naming conventions
+      if(remainder.size() > 6 && remainder.substr(0,6) == "plane_") {
+        remainder = remainder.substr(6);
+      }
+      conf.device_n=std::stoi(remainder);
       EUDAQ_DEBUG(" set device number `"+id+"` from Corryvreckan");
     }
   }
@@ -68,7 +73,9 @@ bool ALPIDERawEvent2StdEventConverter::Converting(eudaq::EventSPC in,eudaq::StdE
   auto rawev=std::dynamic_pointer_cast<const eudaq::RawEvent>(in);
   std::vector<uint8_t> data=rawev->GetBlock(0); // FIXME: copy?
   if(conf.device_n>=0 && conf.device_n!=rawev->GetDeviceN()) return false;
-  eudaq::StandardPlane plane(rawev->GetDeviceN(),"ITS3DAQ","ALPIDE");
+  // Use "ALPIDE_plane" as sensor name so that Corryvreckan builds plane_name
+  // as "ALPIDE_plane_N" matching detector sections [ALPIDE_plane_N] in geometry.
+  eudaq::StandardPlane plane(rawev->GetDeviceN(),"ITS3DAQ","ALPIDE_plane");
   plane.SetSizeZS(1024,512,0,1); // 0 hits so far + 1 frame
   size_t i=0;
   size_t n=data.size();
