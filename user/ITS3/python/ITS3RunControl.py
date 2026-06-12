@@ -40,6 +40,7 @@ class ITS3TUI():
       'CONF'   :('state-conf'         ,'CONFIGURED'     ),
       'RUNNING':('state-running'      ,' >> RUNNING >> '),
       'STOPPED':('state-stopped'      ,'STOPPED'        ),
+      'WAITING':('state-stopped'      ,'WAIT/NEXT'      ),
       'TERMINATED':('state-uninit'    ,'TERMINATED'     ),
     }
     CONNECTION_STATES={
@@ -72,6 +73,9 @@ class ITS3TUI():
             with self.rc.lock:
                 self.rc.running = False
                 self.rc.repeat = True
+        elif key in ('N',):
+            # Start next run when system is in WAITING state (after run ended)
+            self.rc._next_run_gate.set()
 
     def run(self):
         self.loop=urwid.MainLoop(
@@ -172,7 +176,7 @@ class ITS3TUI():
         asyncio.run_coroutine_threadsafe(self.update_tip_(text),self.aloop).result()
 
     def buildtui(self):
-        self.footer=urwid.Text(('footer','Hotkeys: [S]top run, [R]estart run, [T]erminate, [Q]uit'))
+        self.footer=urwid.Text(('footer','Hotkeys: [S]top run, [R]estart run, [N]ext run, [T]erminate, [Q]uit'))
         footer=urwid.Padding(self.footer)
         footer=urwid.AttrWrap(footer,'footer')
         header=urwid.Columns([
@@ -261,6 +265,8 @@ class ITS3RunControl(pyeudaq.RunControl):
         self.running=False
         self.halt=False
         self.repeat=False
+        # Gate that blocks the run loop between runs until the user presses [N]
+        self._next_run_gate = threading.Event()
     
     @exception_handler
     def DoConnect(self,c):
@@ -390,6 +396,13 @@ class ITS3RunControl(pyeudaq.RunControl):
                     active_config = 0
                     iteration += 1
                     self.tui.reset_progress_tot()
+            # Wait for explicit [N] command before starting the next run.
+            # The system stays in WAITING state; press [N] to continue,
+            # [T] to terminate, [Q] to quit after termination.
+            self._next_run_gate.clear()
+            self.tui.set_state('WAITING')
+            self._next_run_gate.wait()
+            if self.halt: break
         self.tui.set_state('TERMINATED')
         self.Terminate()
         with self.lock: self.halt = True
