@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import pyeudaq
 import threading
 import urwid
@@ -10,6 +11,26 @@ from time import sleep
 import argparse
 import traceback
 from utils import exception_handler, get_quote_or_tip
+
+# Optional Telegram notifications — works if eudaq_tools/ is on PYTHONPATH
+# (ALTAIstart.py adds altaiOS root to PYTHONPATH automatically).
+try:
+    _ALTAI_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+    if _ALTAI_ROOT not in sys.path:
+        sys.path.insert(0, _ALTAI_ROOT)
+    import eudaq_tools.telegram_notifier as _tg
+    _TG_OK = _tg.is_configured()
+except Exception:
+    _tg   = None
+    _TG_OK = False
+
+def _tg_send(text: str):
+    """Fire-and-forget Telegram message; silently ignores failures."""
+    if _TG_OK and _tg is not None:
+        try:
+            _tg.send_message(text)
+        except Exception:
+            pass
 
 urwid_timed_progress.FancyProgressBar.get_text=lambda self: '%d/%d %s (%.1f%%)'%(self.current,self.done,self.units[0][0],self.current/self.done*100)
 
@@ -342,6 +363,7 @@ class ITS3RunControl(pyeudaq.RunControl):
             pyeudaq.EUDAQ_ERROR(str(e))
             pyeudaq.EUDAQ_ERROR(traceback.format_exc())
             self.tui.set_state('ERROR')
+            _tg_send(f"❌ Run aborted — {type(e).__name__}: {e}")
             if self.running:
                 self.StopRun()
 
@@ -366,6 +388,8 @@ class ITS3RunControl(pyeudaq.RunControl):
             self.wait_replicas(5)
             self.tui.set_state('RUNNING')
             ntarget=int(self.GetConfiguration().Get('NEVENTS'))
+            run_n = self.GetRunNumber()
+            _tg_send(f"🚀 Run #{run_n} started — target {ntarget:,} events")
             self.tui.target_progress_run(ntarget)
             self.tui.update_tip()
             nlast=0
@@ -383,10 +407,14 @@ class ITS3RunControl(pyeudaq.RunControl):
                 self.check_status()
                 sleep(0.1)
             self.tui.update_progress_tot()
+            stopped_by = "target reached" if n >= ntarget else "user stop"
             self.StopRun()
             self.wait_replicas(pyeudaq.Status.STATE_STOPPED)
             self.tui.set_state('STOPPED')
-            if self.halt: break
+            _tg_send(f"🏁 Run #{run_n} ended — {n:,} events ({stopped_by})")
+            if self.halt:
+                _tg_send(f"⏹ Terminate — EUDAQ session closing")
+                break
             if self.repeat:
                 with self.lock:
                     self.repeat = False
