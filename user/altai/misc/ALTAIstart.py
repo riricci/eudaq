@@ -14,6 +14,11 @@ SERVER_PORT = 8002
 SERVER_DIR  = os.path.abspath(os.path.dirname(__file__) + "/../../../.." + "/eudaq_tools/server")
 SERVER_LOG  = os.path.join(SERVER_DIR, "server.log")
 
+DATA_DIR = os.path.join(os.path.expanduser("~"), "DATA")
+if not os.path.isdir(DATA_DIR):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    print(f"[yellow]Created data directory: {DATA_DIR}[/yellow]")
+
 def ensure_server_running():
     """Start the DAQ web server on port SERVER_PORT if not already listening."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
