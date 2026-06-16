@@ -29,7 +29,8 @@ def ensure_server_running():
     print(f"[yellow]Server not running — starting on port {SERVER_PORT}...[/yellow]")
     log = open(SERVER_LOG, "a")
     subprocess.Popen(
-        ["python3", "server.py"],
+        ["python3", "-m", "uvicorn", "server:app",
+         "--host", "0.0.0.0", "--port", str(SERVER_PORT), "--reload"],
         cwd=SERVER_DIR,
         stdout=log,
         stderr=log,
