@@ -32,6 +32,21 @@ def _tg_send(text: str):
         except Exception:
             pass
 
+def _read_run_number() -> str:
+    """Read the current run number from the newest .raw file in ~/DATA."""
+    import glob
+    data_dir = os.path.join(os.path.expanduser("~"), "DATA")
+    try:
+        files = glob.glob(os.path.join(data_dir, "run*.raw"))
+        if files:
+            newest = max(files, key=os.path.getmtime)
+            m = re.search(r'run(\d+)', os.path.basename(newest))
+            if m:
+                return m.group(1)
+    except Exception:
+        pass
+    return "?"
+
 urwid_timed_progress.FancyProgressBar.get_text=lambda self: '%d/%d %s (%.1f%%)'%(self.current,self.done,self.units[0][0],self.current/self.done*100)
 
 class ITS3TUI():
@@ -388,7 +403,8 @@ class ITS3RunControl(pyeudaq.RunControl):
             self.wait_replicas(5)
             self.tui.set_state('RUNNING')
             ntarget=int(self.GetConfiguration().Get('NEVENTS'))
-            run_n = self.GetRunNumber()
+            sleep(0.5)  # wait for EUDAQ to create the .raw file
+            run_n = _read_run_number()
             _tg_send(f"🚀 Run #{run_n} started — target {ntarget:,} events")
             self.tui.target_progress_run(ntarget)
             self.tui.update_tip()
