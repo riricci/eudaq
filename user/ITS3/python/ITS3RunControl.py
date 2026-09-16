@@ -24,6 +24,12 @@ except Exception:
     _tg   = None
     _TG_OK = False
 
+try:
+    from eudaq_tools.runlist import on_run_start as _rl_start, on_run_end as _rl_end
+    _RL_OK = True
+except Exception:
+    _RL_OK = False
+
 def _tg_send(text: str):
     """Fire-and-forget Telegram message; silently ignores failures."""
     if _TG_OK and _tg is not None:
@@ -31,6 +37,18 @@ def _tg_send(text: str):
             _tg.send_message(text)
         except Exception:
             pass
+
+def _read_raw_path() -> str:
+    """Return the full path of the newest .raw file in ~/DATA, or ''."""
+    import glob
+    data_dir = os.path.join(os.path.expanduser("~"), "DATA")
+    try:
+        files = glob.glob(os.path.join(data_dir, "run*.raw"))
+        if files:
+            return max(files, key=os.path.getmtime)
+    except Exception:
+        pass
+    return ""
 
 def _read_run_number() -> str:
     """Read the current run number from the newest .raw file in ~/DATA."""
@@ -404,8 +422,11 @@ class ITS3RunControl(pyeudaq.RunControl):
             self.tui.set_state('RUNNING')
             ntarget=int(self.GetConfiguration().Get('NEVENTS'))
             sleep(0.5)  # wait for EUDAQ to create the .raw file
-            run_n = _read_run_number()
+            raw_path = _read_raw_path()
+            run_n    = _read_run_number()
             _tg_send(f"🚀 Run #{run_n} started — target {ntarget:,} events")
+            if _RL_OK and raw_path:
+                _rl_start(raw_path)
             self.tui.target_progress_run(ntarget)
             self.tui.update_tip()
             nlast=0
@@ -428,6 +449,8 @@ class ITS3RunControl(pyeudaq.RunControl):
             self.wait_replicas(pyeudaq.Status.STATE_STOPPED)
             self.tui.set_state('STOPPED')
             _tg_send(f"🏁 Run #{run_n} ended — {n:,} events ({stopped_by})")
+            if _RL_OK and raw_path:
+                _rl_end(raw_path, n)
             if self.halt:
                 _tg_send(f"⏹ Terminate — EUDAQ session closing")
                 break
