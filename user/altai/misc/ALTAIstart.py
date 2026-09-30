@@ -11,7 +11,7 @@ from rich.prompt import Confirm
 from rich import print
 
 SERVER_PORT = 8002
-SERVER_DIR  = os.path.abspath(os.path.dirname(__file__) + "/../../../.." + "/eudaq_tools/servers/web-ui")
+SERVER_DIR  = os.path.abspath(os.path.dirname(__file__) + "/../../../.." + "/eudaq_tools/server")
 SERVER_LOG  = os.path.join(SERVER_DIR, "server.log")
 
 DATA_DIR = os.path.join(os.path.expanduser("~"), "DATA")
